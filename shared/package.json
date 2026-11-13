@@ -1,0 +1,10 @@
+{
+  "name": "@robot-combat/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.14.0"
+  }
+}

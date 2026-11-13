@@ -1,0 +1,594 @@
+# 3D Robot Combat Web Game: Build Prompt and Specification
+
+## 1. How to use this document
+
+You are building the game described below. Follow these rules while you work:
+
+1. Read the whole document before writing any code.
+2. Build in the phases listed in section 14. Each phase must be fully working and playable before the next one starts. Begin with Phase 1.
+3. Ask me before any major decision that this document does not settle, such as changing a framework, adding a feature, or changing a game rule. Small implementation details are yours to decide.
+4. Do not build anything listed under "Out of scope" in section 3, even if it looks like an improvement.
+5. Values marked *tunable* are starting points. Keep all of them in one configuration file so they can be balanced later without touching game logic.
+6. Section 15 lists assumptions made while writing this document. Use them as defaults and tell me which ones you are relying on, because I may change them.
+
+## 2. Project summary
+
+A browser-based 3D robot combat game for a private group of friends who are members of a club. Each player:
+
+1. builds a robot from basic parts in a 3D editor,
+2. writes that robot's control program in JavaScript,
+3. drives the robot manually in real-time 1v1 fights against a friend's robot.
+
+Other friends in the same room can watch the fight live as spectators.
+
+Everything in the game is available to every player from the first minute. There is nothing to unlock, buy, earn, or upgrade. The only things that decide a fight are the design, the code, and the driving.
+
+## 3. Scope
+
+### In scope
+
+- A free-form 3D robot builder that starts from an empty grid
+- An in-game code editor and a JavaScript control API
+- A local test arena with a training target
+- Real-time 1v1 online fights in private, invite-only rooms
+- Spectators: other friends in the room can watch fights live
+- Saving multiple robots on the player's device, with export and import
+- Arabic and English interface with a language switch
+- Desktop (keyboard and mouse) and mobile (touch) support
+
+### Out of scope: do not build
+
+| Excluded | Reason |
+|---|---|
+| Accounts, sign-up, login, passwords | Registration is handled on the club's own website (the Google club site), outside this project. The game only asks for a display name. |
+| Upgrades, part levels, currency, shop, XP, player levels | Every part is unlocked for everyone from the start. |
+| Leaderboards and ranking | Removed together with the progression system. |
+| Public matchmaking or playing with strangers | The game is for friends only. Rooms are joined by invite code. |
+| Arena traps or hazards | The arena is a plain enclosed floor. |
+| Ready-made robots or ready-made control programs for players | Players build and program from scratch. |
+
+## 4. Core loop
+
+**Build → Program → Test → Fight → Improve**
+
+Players can edit the design and the code freely at any time outside a match.
+
+## 5. Screens and flow
+
+| Screen | Purpose | Key elements |
+|---|---|---|
+| Home | Entry point | Display name field (saved on the device), language switch, buttons: Garage, Create room, Join room, Guide |
+| Garage | Manage saved robots | Robot cards (3D preview, name, weight, valid or invalid badge); New, Edit, Duplicate, Delete, Export, Import |
+| Workshop | Create and edit one robot | Three tabs: Build, Code, Test |
+| Room lobby | Prepare an online match | Invite code and link, two fighter seats, spectator list, robot selection, match settings (host only), Ready buttons |
+| Match | The fight | 3D arena, HUD, on-screen controls on touch devices for the fighters, spectator view for everyone else |
+| Results | After a match | Winner, round-by-round summary, damage dealt, shown to fighters and spectators; buttons: Rematch (fighters only), Back to lobby, Leave room |
+| Guide | Reference | Parts reference, programming API reference, match rules |
+
+## 6. Building
+
+### 6.1 Editor
+
+- A new robot starts as an empty grid. There are no templates and no ready-made designs.
+- Every part in the catalog is available to every player at all times.
+- Parts snap to a 3D grid. One grid cell is 10 cm.
+- The grid shows a fixed FRONT arrow. The robot spawns in the arena facing its opponent along that direction, and sensor bearings are measured from it.
+- Actions: place, remove, move, rotate in 90° steps, set colour, undo, redo, clear all.
+- Optional mirror mode places parts symmetrically across the robot's centre line.
+- Camera: orbit, pan, zoom. On desktop these use the mouse. On mobile, one finger orbits, two fingers pan and zoom, and a tap places a part.
+- The part palette is grouped by category and shows each part's stats before it is placed.
+- A live stats panel shows total weight against the limit, part count against the limit, battery capacity, and estimated energy drain at full power.
+- Every motor, actuator, and sensor has an editable ID (for example `leftDrive`) that the control program uses. IDs are unique within a robot and are auto-generated by default (`motor1`, `motor2`, and so on).
+- Validation messages say exactly what is wrong, for example "Over the weight limit by 6 kg". Problems that do not break a rule, such as a motor with nothing attached, are shown as warnings.
+- Desktop is the comfortable device for building, but everything must also work on a phone.
+
+### 6.2 Part catalog
+
+All values are *tunable*. `E` is the game's energy unit.
+
+| Category | Part | Weight (kg) | HP | Notes |
+|---|---|---|---|---|
+| Structure | Frame block | 1.0 | 40 | 1×1×1 cell. The basic building block. |
+| Structure | Wedge block | 0.8 | 35 | 1×1×1 cell with a sloped face. Deflects hits and slides under opponents. |
+| Structure | Panel | 0.4 | 20 | Thin 1×1 cover for closing gaps. |
+| Armor | Light plate | 1.5 | 80 | Thin 2×2 plate. Takes 15% less damage. |
+| Armor | Medium plate | 3.0 | 160 | Thin 2×2 plate. Takes 30% less damage. |
+| Armor | Heavy plate | 5.0 | 260 | Thin 2×2 plate. Takes 45% less damage. |
+| Motor | Small motor | 2.0 | 50 | Torque ×1, top speed 600 rpm, drains 2 E/s at full power. |
+| Motor | Medium motor | 4.0 | 70 | Torque ×2, top speed 450 rpm, drains 4 E/s at full power. |
+| Motor | Large motor | 7.0 | 100 | Torque ×4, top speed 300 rpm, drains 8 E/s at full power. |
+| Wheel | Small wheel | 0.5 | 30 | 1 cell in diameter. Quick acceleration, low ground clearance. Mounts on a motor. |
+| Wheel | Medium wheel | 1.0 | 45 | 2 cells in diameter. Balanced. Mounts on a motor. |
+| Wheel | Large wheel | 2.0 | 60 | 3 cells in diameter. Higher top speed and clearance, needs more torque. Mounts on a motor. |
+| Wheel | Caster | 0.3 | 25 | Free-rolling support point. Needs no motor. |
+| Spinning weapon | Spinner bar | 6.0 | 150 | 4 cells long. Damage ×3.0. Slow to spin up, wide reach. Mounts on a motor. |
+| Spinning weapon | Spinner disc | 5.0 | 140 | 3 cells in diameter. Damage ×2.5. Mounts on a motor. |
+| Spinning weapon | Drum | 7.0 | 180 | 2 cells wide. Damage ×2.2. Compact, hits upward. Mounts on a motor. |
+| Spinning weapon | Saw blade | 2.0 | 80 | 2 cells in diameter. Cuts continuously: up to 25 HP/s while in contact at full speed. Mounts on a motor. |
+| Actuated weapon | Flipper | 8.0 | 120 | Launches whatever is on the arm upward. Cooldown 2.0 s, 15 E per use. |
+| Actuated weapon | Hammer | 9.0 | 130 | Overhead strike with 60 base damage. Cooldown 1.5 s, 10 E per use. |
+| Sensor | Distance sensor | 0.2 | 15 | Measures up to 5 m in the direction it faces. |
+| Sensor | Radar | 0.5 | 20 | Distance and bearing to the opponent anywhere in the arena. |
+| Sensor | Gyro | 0.2 | 15 | Heading, tilt, and whether the robot is upside down. |
+| Sensor | Bumper | 0.2 | 20 | Detects contact on its face. |
+| Power | Small battery | 4.0 | 60 | Stores 1,000 E. |
+| Power | Large battery | 8.0 | 90 | Stores 2,200 E. |
+| Control | Control Core | 3.0 | 120 | Required. Runs the control program. If it is destroyed, the robot is knocked out. |
+
+How motors work: a motor is a separate part with one output shaft. The player attaches exactly one wheel or one spinning weapon to that shaft. The control program powers the motor, and the motor turns whatever is attached to it.
+
+### 6.3 Build rules
+
+All limits are *tunable*.
+
+| Rule | Default |
+|---|---|
+| Maximum weight | 100 kg |
+| Maximum size | 12 × 12 × 8 cells (1.2 × 1.2 × 0.8 m) |
+| Maximum part count | 80, counting attachments |
+| Control Core | Exactly 1 |
+| Battery | At least 1 |
+| Connectivity | Every part must connect to the Control Core through touching parts |
+| Motor attachments | At most one wheel or spinning weapon per motor |
+
+A robot that breaks a rule can still be saved as a draft, but it cannot enter the test arena or a match until it is fixed.
+
+## 7. Programming
+
+### 7.1 Concept
+
+- The robot does nothing on its own. There is no built-in driving. Pressing a key has no effect until the player's program reads that key and sends power to a motor.
+- The player drives the robot by hand during the fight. The program is the link between the player's inputs and the robot's motors, weapons, and sensors.
+- A program may use sensors for assists, for example firing the flipper automatically when a bumper is pressed. A human still drives.
+- The language is JavaScript.
+- A new robot's program starts as an empty skeleton with no working logic.
+
+### 7.2 Program structure
+
+Every program defines two functions:
+
+| Function | When it runs | Purpose |
+|---|---|---|
+| `setup(robot, controls)` | Once, during the countdown before each round | Declare the controls the player will use |
+| `loop(robot, input, dt)` | 30 times per second during the round | Read inputs and sensors, then command motors and actuators |
+
+`dt` is the time in seconds since the previous call. A command stays in effect until the program changes it.
+
+### 7.3 API reference
+
+**Controls, declared in `setup`**
+
+| Call | Description |
+|---|---|
+| `controls.button(name, { key, label })` | Declares a button. `key` is the keyboard key on desktop, written as a `KeyboardEvent.code` value such as `'Space'`. On touch devices a button showing `label` is drawn on screen. |
+| `controls.stick(name, { keys, label })` | Declares a two-axis stick. `keys` lists four keyboard keys in the order up, down, left, right. On touch devices a virtual joystick is drawn. |
+
+A program may declare up to 2 sticks and 6 buttons (*tunable*). The game reserves `Escape` (menu) and `KeyV` (camera), and programs cannot bind them.
+
+**Input, read in `loop`**
+
+| Call | Returns |
+|---|---|
+| `input.button(name)` | `true` while the button is held |
+| `input.pressed(name)` | `true` only on the tick the button goes down |
+| `input.stick(name)` | `{ x, y }`, each from -1 to 1. Right and up are positive. |
+
+**Motors**
+
+| Call | Description |
+|---|---|
+| `robot.motor(id).setPower(p)` | Sets power from -1 (full reverse) to 1 (full forward). Values outside the range are clamped. |
+| `robot.motor(id).speed` | Current speed as a fraction of the motor's maximum, from -1 to 1 |
+| `robot.motor(id).health` | Remaining HP of the motor, from 0 to 1 |
+
+**Actuators (flipper and hammer)**
+
+| Call | Description |
+|---|---|
+| `robot.actuator(id).fire()` | Triggers the weapon if it is ready. Returns `true` if it fired. |
+| `robot.actuator(id).ready` | `true` when the cooldown has finished and there is enough energy |
+| `robot.actuator(id).health` | Remaining HP of the actuator, from 0 to 1 |
+
+**Sensors**
+
+| Call | Sensor | Returns |
+|---|---|---|
+| `robot.sensor(id).distance` | Distance sensor | Metres to the nearest object ahead, or `null` if nothing is in range |
+| `robot.sensor(id).target` | Radar | `{ distance, bearing }` for the opponent. `bearing` is in degrees from the robot's front, from -180 to 180. |
+| `robot.sensor(id).heading` | Gyro | Compass heading in degrees, from 0 to 360 |
+| `robot.sensor(id).tilt` | Gyro | Tilt from level, in degrees |
+| `robot.sensor(id).upsideDown` | Gyro | `true` when the robot is flipped over |
+| `robot.sensor(id).touching` | Bumper | `true` while something is in contact with its face |
+
+**Robot state**
+
+| Call | Returns |
+|---|---|
+| `robot.battery` | Remaining energy, from 0 to 1 |
+| `robot.health` | Remaining total HP, from 0 to 1 |
+| `robot.time` | Seconds since the round started |
+| `robot.log(...values)` | Prints to the console panel |
+
+Rules that apply to the whole API:
+
+- Information is only available through parts the robot actually has. A robot with no gyro cannot read its heading.
+- A destroyed part ignores commands, and its sensor readings return `null`.
+- Using an ID that does not exist does nothing and logs one warning. It does not crash the program.
+
+### 7.4 Illustrative example
+
+This example shows the intended shape of the API. It is for you, the implementer. Do not ship it as a starting template for players.
+
+```js
+function setup(robot, controls) {
+  controls.stick('drive', { keys: ['KeyW', 'KeyS', 'KeyA', 'KeyD'], label: 'Drive' });
+  controls.button('spin', { key: 'Space', label: 'Spin' });
+  controls.button('flip', { key: 'KeyF', label: 'Flip' });
+}
+
+function loop(robot, input, dt) {
+  const { x, y } = input.stick('drive');
+  robot.motor('leftDrive').setPower(y + x);
+  robot.motor('rightDrive').setPower(y - x);
+
+  robot.motor('spinner').setPower(input.button('spin') ? 1 : 0);
+
+  if (input.pressed('flip')) {
+    robot.actuator('flipper').fire();
+  }
+}
+```
+
+### 7.5 Code editor
+
+- Syntax highlighting, line numbers, auto-indent, bracket matching.
+- Autocomplete for the game API and for the robot's own part IDs.
+- A side panel lists the robot's motors, actuators, and sensors with their IDs. Selecting one inserts its ID into the code.
+- A console panel shows `robot.log` output, warnings, and runtime errors with line numbers.
+- Syntax errors are shown before the program runs. A robot whose program has a syntax error cannot enter a match.
+- A "Run in test arena" button.
+- The editor is always left-to-right, in both interface languages.
+- The editor must be usable on a phone, although desktop is the comfortable way to write code.
+
+### 7.6 Execution and safety
+
+- The control program runs on the player's own device. The server never runs player code.
+- The program runs in an isolated environment with no access to the page, to storage, or to the network. A dedicated Web Worker inside a sandboxed iframe with a restrictive Content Security Policy is one way to do this.
+- Each `loop` call has a time budget of 5 ms (*tunable*). If the program goes over the budget repeatedly or hangs, it is stopped, all its commands are reset to zero, and a clear error is shown. In the test arena the player can fix the code and restart. In a match the program stays stopped until the next round.
+- An exception inside `loop` skips that tick and is logged. Repeated identical errors are rate-limited in the console. The program keeps running.
+- Programs cannot be edited during a match.
+- An imported robot contains code written by someone else. The isolation above is what makes importing a friend's robot safe.
+
+## 8. Customization and saving
+
+- Colour: paint individual parts or the whole robot at once.
+- Name: every robot has a name chosen by the player.
+- Customization never changes stats.
+- Robots are saved on the player's device, including the design and the code. Use IndexedDB or localStorage.
+- Autosave while editing.
+- A player can keep many robots, duplicate a robot to try a variation, and delete robots.
+- Export writes one robot to a single `.json` file. Import reads it back. This is how friends share designs and how a player backs up their work.
+- Import validates the file and rejects unknown part types or malformed data with a clear message.
+
+## 9. Combat
+
+### 9.1 Arena
+
+- One enclosed arena: a flat 12 × 12 m floor with solid walls 1.5 m high (*tunable*).
+- No traps, hazards, pits, or moving elements.
+- Robots spawn on opposite sides, facing each other.
+- A 3-2-1 countdown starts each round. Robots cannot move during the countdown.
+
+### 9.2 Match format
+
+The host can change these in the lobby. Defaults are *tunable*.
+
+| Setting | Default | Options |
+|---|---|---|
+| Rounds | Best of 3 | Single round, best of 3, best of 5 |
+| Round length | 3:00 | 2:00, 3:00, 5:00 |
+
+- Robots are fully repaired and recharged between rounds.
+- Robots cannot be edited between rounds. Players may edit or change robots between matches.
+
+### 9.3 Physics and damage
+
+- Rigid-body physics. Mass comes from part weights, and the centre of mass comes from the part layout, so layout matters: a tall, top-heavy robot tips over more easily.
+- Wheels have grip, and motors apply torque. Heavy robots need more torque to accelerate.
+- Impact damage = impact energy at the contact point × the striking part's damage multiplier × (1 − the armour reduction of the part that was hit).
+- Ramming with structure or armour uses a low multiplier of ×0.3 (*tunable*).
+- Spinning weapons deal damage in proportion to their current spin speed. A hit slows the weapon down, and it must spin up again. Spin-up time depends on motor torque and weapon weight. Hits push both robots apart.
+- The saw blade deals continuous damage while it is spinning and in contact.
+- The flipper applies a strong upward impulse to whatever is on its arm. It can also turn the robot back over.
+- The hammer strikes downward in an arc and damages the part it lands on. It can also turn the robot back over.
+- Every part has its own HP. At 0 HP a part is destroyed: it stops working and breaks off as debris. Debris disappears after a few seconds.
+- If a destroyed part leaves other parts disconnected from the Control Core, that whole section falls off and is lost for the round.
+- Feedback: sparks on impact, smoke from badly damaged parts, visible darkening as a part loses HP.
+- Calibration target: a full-speed spinner bar hit removes roughly 80 to 120 HP, and a round between two balanced robots usually lasts 1 to 3 minutes.
+
+### 9.4 Energy
+
+- Motors drain energy in proportion to the power commanded.
+- Actuated weapons use a fixed amount of energy per use.
+- Sensors and the Control Core use no energy.
+- At zero energy, motors and actuators stop working.
+
+### 9.5 Winning a round
+
+| Outcome | Condition |
+|---|---|
+| Knockout | The opponent's Control Core is destroyed. |
+| Count-out | The opponent has moved less than 0.5 m in 5 seconds, which starts a visible 10-second countdown. The countdown cancels as soon as that robot moves 0.5 m. Typical causes: flipped over, wheels lost, battery empty, program stopped. |
+| Decision | Time runs out. The robot with the higher percentage of remaining HP wins. |
+| Draw | Equal HP percentage at time-out, or both robots knocked out at the same moment. |
+
+The match winner is the player who wins the most rounds. If the match is tied after the last round, one extra round is played.
+
+### 9.6 Camera and HUD
+
+- Default camera: third person, following the player's own robot.
+- Alternative camera: a fixed overhead view of the whole arena. The player can switch at any time.
+- HUD: round timer, round score, both players' names and robot names, a health bar for each robot, the player's own battery level, the count-out countdown, a connection quality indicator, and a warning if the player's program has stopped.
+- Each robot carries a clear player marker in one of two fixed colours, because robots can be painted any colour.
+- Spectator view: starts on the overhead camera, and the spectator can switch to follow either robot.
+- Spectator HUD: round timer, round score, both players' names and robot names, both health bars, both battery levels, the count-out countdown, and the number of spectators watching.
+
+### 9.7 Controls
+
+- Desktop: the keyboard keys declared by the player's program.
+- Touch: the virtual sticks and buttons declared by the player's program, drawn automatically. Sticks sit at the bottom on one side and buttons on the other.
+
+## 10. Online play
+
+### 10.1 Private rooms
+
+- Creating a room produces a random 6-character invite code and a shareable link.
+- A friend joins by typing the code or opening the link.
+- A room has two fighter seats and space for up to 20 spectators (*tunable*).
+- Spectators join with the same code or link as fighters. Everyone who joins enters as a spectator, and the lobby shows the two fighter seats.
+- Anyone in the room can take an empty fighter seat, and a seated player can leave their seat to watch. Seats cannot change during a match.
+- The host takes the first seat automatically when creating the room, and can remove a player from a seat between matches.
+- Spectators can only watch. They cannot affect the fight in any way.
+- When the room is full, new people are refused with a clear message.
+- There is no room list, no matchmaking, and no public rooms. A room cannot be found without its code.
+- Everyone in the room, fighter or spectator, is identified by a display name only (2 to 16 characters), saved on the device.
+- Rooms live in server memory and are deleted when they are empty.
+
+### 10.2 Lobby flow
+
+1. The host creates a room, takes the first fighter seat, and shares the code.
+2. Friends join with the code and enter as spectators. Everyone sees the list of people in the room.
+3. One of them takes the second fighter seat.
+4. Each fighter picks a valid robot from their garage. Everyone in the room sees its name, weight, and 3D preview.
+5. The host sets the match options.
+6. Both fighters press Ready, and the match starts. Spectators watch it live.
+7. After the results, the fighters can rematch with the same robots, or everyone returns to the lobby, where fighters can change robots or give up their seats so other friends can play.
+8. A person who joins while a match is running starts watching it immediately.
+
+### 10.3 Networking model
+
+- The server is authoritative. It runs the physics simulation for the match, and the clients render it.
+- At match start each client sends its robot design, without the code. The server validates the design against the part catalog and the build rules and rejects it if it is invalid.
+- Each client runs its own control program locally and sends the resulting commands (motor powers and actuator triggers) to the server about 30 times per second.
+- The server clamps command values and ignores commands for parts that do not exist or are destroyed.
+- The server sends state snapshots about 30 times per second. Clients interpolate between snapshots for smooth motion.
+- Each snapshot includes the receiving player's sensor readings and part status, which feed that player's program.
+- Spectators receive the same state snapshots without any player's sensor readings. They send no commands, and the server ignores any command that comes from a spectator.
+- The local test arena and the server use the same shared simulation code, so a robot behaves the same offline and online.
+- Transport: WebSocket.
+- The game should stay playable at up to 150 ms of latency.
+
+### 10.4 Disconnects
+
+- If a fighter disconnects during a match, the match pauses for everyone and that fighter has 30 seconds to rejoin the same room.
+- If they do not return in time, they forfeit the match.
+- Spectators can leave and rejoin at any time without affecting the match.
+- If the host leaves, the host role passes to the person who has been in the room the longest.
+- If the server restarts, open rooms are lost. This is acceptable.
+
+## 11. Visual design
+
+- Direction: a dark industrial arena with steel, sparks, and hazard stripes, plus neon accents in the interface.
+- Suggested palette (*tunable*):
+
+| Role | Colour |
+|---|---|
+| Background | `#0E1116` |
+| Panels | `#1A1F27` |
+| Primary accent (hazard yellow) | `#FFC400` |
+| Secondary accent (neon cyan) | `#22E1FF` |
+| Danger | `#FF3B30` |
+| Text | `#E8ECF1` |
+
+- Typography: one interface font family that covers both Arabic and Latin well, for example IBM Plex Sans Arabic or Cairo, plus a monospaced font for code.
+- Arena look: scuffed steel floor, floodlights, dark surroundings. Robots must stay easy to read against the floor.
+- Interface: large touch targets (at least 44 px), clear focus states, responsive from a 360 px wide phone up to a desktop monitor.
+- Graphics quality setting with Low, Medium, and High, controlling shadows, particles, and resolution scale.
+- Sound: motor noise, impacts, and countdown, with volume and mute controls. This is lower priority and can come at the end of Phase 2.
+
+## 12. Languages
+
+- Arabic and English, with a language switch available from every screen. The choice is remembered on the device.
+- On the first visit, use the browser's language if it is Arabic or English. Otherwise use English.
+- Arabic uses a right-to-left layout with a mirrored interface. English uses left-to-right.
+- All interface text lives in translation files. No hard-coded strings.
+- The Guide, including the parts reference and the API reference, is available in both languages.
+- Code, API names, part IDs, and the code editor stay in English and left-to-right in both languages.
+- Runtime errors show a short localized explanation next to the original JavaScript error text.
+- Numbers use Western digits (0 to 9) in both languages.
+
+## 13. Technical architecture
+
+### 13.1 Stack
+
+Ask before changing any of these.
+
+| Layer | Choice |
+|---|---|
+| Language | TypeScript for the game itself. Players write plain JavaScript. |
+| Frontend | React with Vite |
+| 3D rendering | Three.js |
+| Physics | One engine that runs in both the browser and Node.js, for example Rapier, used by the shared simulation |
+| Code editor | CodeMirror 6, because it works on mobile browsers |
+| Server | Node.js with WebSocket |
+| Storage | Browser storage on the player's device. No database. |
+
+### 13.2 Project structure
+
+```
+/client   React app: screens, builder, code editor, renderer, input
+/server   Room management, match simulation, WebSocket API
+/shared   Part catalog and config, robot validation, simulation, protocol types
+```
+
+### 13.3 Robot file format
+
+A sketch of the saved and exported format. Adjust field names as needed, but keep a version number.
+
+```json
+{
+  "formatVersion": 1,
+  "name": "My Robot",
+  "parts": [
+    {
+      "type": "control_core",
+      "position": [5, 0, 5],
+      "rotation": [0, 0, 0],
+      "color": "#FFC400"
+    },
+    {
+      "type": "motor_medium",
+      "id": "leftDrive",
+      "position": [3, 0, 5],
+      "rotation": [0, 90, 0],
+      "color": "#444B55",
+      "attachment": "wheel_medium"
+    }
+  ],
+  "code": "function setup(robot, controls) {}\nfunction loop(robot, input, dt) {}"
+}
+```
+
+### 13.4 Network messages
+
+This is the minimum set.
+
+| Direction | Message | Content |
+|---|---|---|
+| Client → Server | `createRoom` | Display name |
+| Client → Server | `joinRoom` | Display name, room code |
+| Client → Server | `takeSeat`, `leaveSeat` | Take an empty fighter seat, or return to the spectators |
+| Client → Server | `removeFromSeat` | Return a seated player to the spectators (host only) |
+| Client → Server | `selectRobot` | Robot design without code (fighters only) |
+| Client → Server | `setOptions` | Rounds and round length (host only) |
+| Client → Server | `ready` | Ready state |
+| Client → Server | `commands` | Motor powers and actuator triggers for the current tick (fighters only) |
+| Server → Client | `roomState` | Fighters, spectators, host, selected robots, options, ready states |
+| Server → Client | `matchStart`, `roundStart`, `roundEnd`, `matchEnd` | Phase changes and results |
+| Server → Client | `snapshot` | Positions, rotations, part HP, energy, plus the receiving fighter's own sensor readings (spectators get none) |
+| Server → Client | `error` | Reason, such as room full or invalid robot |
+
+### 13.5 Security and robustness
+
+- The server never executes player code.
+- The server validates every incoming message and every robot design, and enforces message size limits and rate limits.
+- Room codes are random and hard to guess. Limit repeated failed join attempts.
+- A crash in one room must not affect other rooms.
+- Player code is isolated as described in section 7.6.
+
+### 13.6 Performance targets
+
+- 60 fps on a mid-range laptop.
+- 30 fps on a recent phone at Low quality.
+- Physics at 60 steps per second. Control programs at 30 ticks per second.
+- At least 20 simultaneous rooms on one small server (*tunable*).
+- A room with 20 spectators runs as smoothly for the fighters as a room with none.
+
+### 13.7 Deployment
+
+- The client builds to static files. The server is a single Node.js process.
+- Server address and port come from environment variables.
+- Include a README with instructions for running locally and for deploying.
+- The game is a standalone site that the club's website can link to.
+
+## 14. Phases and acceptance criteria
+
+### Phase 1: Workshop and local testing
+
+No server in this phase.
+
+Deliver:
+
+- Home (display name and language switch), Garage, Workshop (Build, Code, Test), and Guide
+- The full part catalog and build validation
+- The control API and the isolated program runtime
+- A test arena with a training target
+- Save, autosave, duplicate, delete, export, and import
+- Arabic and English
+- Desktop and touch support
+
+The training target is a simple pre-made dummy that exists only as an opponent in the test arena. It has two modes: standing still and moving slowly. Players cannot select, copy, or edit it.
+
+Phase 1 is done when:
+
+- [ ] A new player can build a valid robot from an empty grid, name it, and save it.
+- [ ] The robot does not move until the player writes a program.
+- [ ] With a program, the robot can be driven by keyboard on desktop and by on-screen controls on a phone.
+- [ ] Every weapon type works and damages the training target, parts break off, and destroying a Control Core ends the round.
+- [ ] Energy drains during use, and the robot stops at zero.
+- [ ] A program with an infinite loop does not freeze the page and produces a clear error.
+- [ ] Robots are still there after the page reloads, and export followed by import reproduces the same robot.
+- [ ] Invalid robots are blocked from the test arena with a clear reason.
+- [ ] The whole interface works in Arabic (right-to-left) and English (left-to-right).
+
+### Phase 2: Online private rooms
+
+Deliver:
+
+- The server, rooms, and invite codes
+- The lobby with fighter seats and a spectator list
+- Real-time 1v1 matches with the full rules from section 9
+- Live spectating
+- The results screen and rematch
+- Reconnect handling
+
+Phase 2 is done when:
+
+- [ ] Two players on different networks can create and join a room by code or by link and finish a best-of-3 match.
+- [ ] Both players and all spectators see the same fight and the same result.
+- [ ] A robot behaves the same online as it does in the test arena.
+- [ ] The server rejects an invalid or tampered robot design.
+- [ ] A disconnected player can rejoin within 30 seconds, and forfeits otherwise.
+- [ ] Other people who join with the code enter as spectators, see the match live, and cannot affect it.
+- [ ] A spectator can take a fighter seat once it is free, and a fighter can step down to watch.
+- [ ] A person who joins in the middle of a match starts watching immediately.
+- [ ] A room cannot be found without its code, and it refuses new people once it is full.
+- [ ] The game is playable at 150 ms of latency.
+
+## 15. Assumptions to confirm
+
+These were decided while writing this document and have not been confirmed by me yet.
+
+1. Players program in JavaScript as text code, not visual blocks.
+2. "From scratch" means an empty skeleton. The Guide contains the API reference and small single-purpose examples, but no complete control program.
+3. Motors are separate parts, and wheels and spinning weapons attach to them.
+4. Every robot needs a Control Core, and destroying it is a knockout.
+5. Sensors exist as optional parts for assists.
+6. Match format: best of 3, 3-minute rounds, count-out after 10 seconds.
+7. Every number in the part catalog and the build rules.
+8. The game asks only for a display name, robots are stored on the device, and there is no database.
+9. A room has two fighter seats and up to 20 spectators. Everyone joins as a spectator, seats are taken freely, and spectators have no chat or reactions.
+10. The visual direction and the suggested palette.
+11. There is one arena.
+12. The test arena has a training target.
+
+## 16. Possible later additions
+
+Not in scope. Do not build these unless I ask.
+
+- Chat or reactions for spectators
+- Tournament brackets for club events
+- More arenas, still without hazards
+- Gamepad support
+- Match replays
+- Decals and stickers

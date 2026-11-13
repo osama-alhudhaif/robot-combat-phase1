@@ -1,0 +1,22 @@
+{
+  "name": "robot-combat",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "shared",
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w client",
+    "build": "npm run build -w client",
+    "preview": "npm run preview -w client",
+    "typecheck": "tsc -p shared --noEmit && tsc -p client --noEmit",
+    "test": "tsx shared/test/sim.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
